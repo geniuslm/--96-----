@@ -41,7 +41,7 @@ def get_script_directory():
     return os.path.dirname(os.path.abspath(__file__))
 
 # 下载并保存章节内容
-def download_novel(url, save_dir=None, progress_callback=None):
+def download_novel(url, save_dir=None, progress_callback=None, start_chapter=1, end_chapter=-1):
     session = create_session()
     try:
         html = get_html(url, session)
@@ -60,9 +60,16 @@ def download_novel(url, save_dir=None, progress_callback=None):
         catalog_list = soup.select('#catalog > ul > li > a')
         ordered_catalog = determine_chapter_order(catalog_list)
         
-        print(f"下载顺序: 从 '{ordered_catalog[0].get_text().strip()}' 到 '{ordered_catalog[-1].get_text().strip()}'")
+        # 处理章节范围
+        start_index = max(start_chapter - 1, 0)
+        end_index = len(ordered_catalog) if end_chapter < 0 else min(end_chapter, len(ordered_catalog))
+        chapters_to_download = ordered_catalog[start_index:end_index]
         
-        for item in ordered_catalog:
+        print(f"下载顺序: 从 '{chapters_to_download[0].get_text().strip()}' 到 '{chapters_to_download[-1].get_text().strip()}'")
+        if progress_callback:
+            progress_callback(f"下载顺序: 从 '{chapters_to_download[0].get_text().strip()}' 到 '{chapters_to_download[-1].get_text().strip()}'")
+        
+        for index, item in enumerate(chapters_to_download, start=start_index + 1):
             chapter_title = item.get_text().strip()
             chapter_url = item['href']
 
@@ -78,11 +85,16 @@ def download_novel(url, save_dir=None, progress_callback=None):
             # 添加随机延迟，避免请求过于频繁
             time.sleep(random.uniform(2, 5))
 
-    except Exception as e:
+        completion_message = "指定范围的章节下载完成"
+        print(completion_message)
         if progress_callback:
-            progress_callback(f"下载小说时发生错误: {e}")
-        else:
-            print(f"下载小说时发生错误: {e}")
+            progress_callback(completion_message)
+
+    except Exception as e:
+        error_message = f"下载小说时发生错误: {e}"
+        print(error_message)
+        if progress_callback:
+            progress_callback(error_message)
 
 # 获取单个章节内容
 def download_chapter_content(chapter_url, session):
@@ -167,14 +179,14 @@ def extract_chapter_number(chapter_title):
 
 # 主函数
 def main():
-    url = 'https://69shuba.cx/book/10019447/'  # 替换为实际的小说目录页面地址
+    url = 'https://69shuba.cx/book/9972220/'  # 替换为实际的小说目录页面地址
     
     # 默认使用脚本所在目录，您也可以指定其他目录
     default_save_dir = get_script_directory()
     # 如果想使用自定义目录，可以取消下面这行的注释并修改路径
     # custom_save_dir = r"E:\python项目\FastAPI\资产文件\文件存储"
     
-    download_novel(url, save_dir=default_save_dir, progress_callback=print)
+    download_novel(url, save_dir=default_save_dir, progress_callback=print, start_chapter=1, end_chapter=-1)
     # 如果想使用自定义目录，使用下面这行
     # download_novel(url, save_dir=custom_save_dir)
 

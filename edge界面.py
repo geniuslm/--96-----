@@ -10,7 +10,8 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, 
 from PySide6.QtWidgets import QListWidget, QScrollArea, QListWidgetItem, QTextEdit,QLineEdit
 from PySide6.QtCore import QMetaObject, Q_ARG
 import threading
-from 新版69爬虫 import download_novel, get_script_directory
+from 新版69爬虫 import download_novel as download_novel_69, get_script_directory
+from 手机笔趣阁爬虫 import download_novel as download_novel_biquge, get_script_directory as get_script_directory_biquge
 
 # 你之前的脚本代码应该被导入或在这里重新定义
 from edge import Edge合成音频, 读取小说文件
@@ -165,6 +166,30 @@ class MainApp(QWidget):
         # 添加标志位
         self.is_synthesizing = False
         self.is_crawling = False
+
+        # 添加爬虫选择下拉框
+        self.crawlerLabel = QLabel("选择爬虫:")
+        self.crawlerComboBox = QComboBox()
+        self.crawlerComboBox.addItems(["69爬虫", "笔趣阁爬虫"])
+        self.layout.addWidget(self.crawlerLabel)
+        self.layout.addWidget(self.crawlerComboBox)
+
+        # 修改章节选择输入框为QSpinBox
+        self.startChapterLabel = QLabel("起始章节:")
+        self.startChapterInput = QSpinBox()
+        self.startChapterInput.setMinimum(1)
+        self.startChapterInput.setMaximum(9999)  # 设置一个较大的最大值
+        self.endChapterLabel = QLabel("结束章节:")
+        self.endChapterInput = QSpinBox()
+        self.endChapterInput.setMinimum(-2)
+        self.endChapterInput.setMaximum(9999)  # 设置一个较大的最大值
+        self.layout.addWidget(self.startChapterLabel)
+        self.layout.addWidget(self.startChapterInput)
+        self.layout.addWidget(self.endChapterLabel)
+        self.layout.addWidget(self.endChapterInput)
+
+        # 连接startChapterInput的valueChanged信号到一个新的方法
+        self.startChapterInput.valueChanged.connect(self.updateEndChapterMinimum)
 
     def updateSelectedFilesDisplay(self):
         self.selectedFilesListWidget.clear()  # 清空当前选中文件的列表
@@ -322,8 +347,13 @@ class MainApp(QWidget):
         self.startCrawlButton.setEnabled(False)
         self.stopCrawlButton.setEnabled(True)
 
+        # 获取选择的爬虫和章节范围
+        selected_crawler = self.crawlerComboBox.currentText()
+        start_chapter = self.startChapterInput.value()
+        end_chapter = self.endChapterInput.value()
+
         # 在新线程中运行爬虫
-        threading.Thread(target=self.run_crawler, args=(url,), daemon=True).start()
+        threading.Thread(target=self.run_crawler, args=(url, selected_crawler, start_chapter, end_chapter), daemon=True).start()
 
     def stopCrawl(self):
         if self.is_crawling:
@@ -332,7 +362,7 @@ class MainApp(QWidget):
             self.startCrawlButton.setEnabled(True)
             self.updateLog("爬虫已停止")
 
-    def run_crawler(self, url):
+    def run_crawler(self, url, selected_crawler, start_chapter, end_chapter):
         try:
             def custom_print(*args, **kwargs):
                 if not self.is_crawling:
@@ -350,7 +380,10 @@ class MainApp(QWidget):
 
             sys.stdout = CustomStdout()
 
-            download_novel(url, save_dir=get_script_directory(), progress_callback=custom_print)
+            if selected_crawler == "69爬虫":
+                download_novel_69(url, save_dir=get_script_directory(), progress_callback=custom_print, start_chapter=start_chapter, end_chapter=end_chapter)
+            else:  # 笔趣阁爬虫
+                download_novel_biquge(url, save_dir=get_script_directory_biquge(), progress_callback=custom_print, start_chapter=start_chapter, end_chapter=end_chapter)
 
         except Exception as e:
             if str(e) != "爬虫已停止":
@@ -371,6 +404,12 @@ class MainApp(QWidget):
         QMetaObject.invokeMethod(self.logTextEdit, "append", 
                                  Qt.QueuedConnection,
                                  Q_ARG(str, message))
+
+    def updateEndChapterMinimum(self, value):
+        """
+        当起始章节的值改变时,更新结束章节的最小值
+        """
+        self.endChapterInput.setMinimum(value)
 
 
 if __name__ == "__main__":

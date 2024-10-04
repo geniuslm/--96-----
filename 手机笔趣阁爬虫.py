@@ -67,7 +67,11 @@ def download_novel(url, save_dir=None, progress_callback=None, start_chapter=1, 
         for index, item in enumerate(chapters_to_download, start=start_index + 1):
             chapter_url = 'https://m.boquge.com' + item['href']
             chapter_title = item.get_text().strip()
-            print(f"正在处理章节 {index}/{end_index}: {chapter_title}")
+            log_message = f"正在处理章节 {index}/{end_index}: {chapter_title}"
+            print(log_message)
+            if progress_callback:
+                progress_callback(log_message)
+            
             chapter_content = download_chapter_content(chapter_url, session)
             if chapter_content:
                 formatted_title = format_chapter_title(chapter_title, index)
@@ -77,14 +81,23 @@ def download_novel(url, save_dir=None, progress_callback=None, start_chapter=1, 
                 if progress_callback:
                     progress_callback(f"已下载: {formatted_title}")
             else:
-                print(f"无法获取章节内容: {chapter_title}")
+                error_message = f"无法获取章节内容: {chapter_title}"
+                print(error_message)
+                if progress_callback:
+                    progress_callback(error_message)
             
             time.sleep(random.uniform(2, 5))
 
-        print("指定范围的章节下载完成")
+        completion_message = "指定范围的章节下载完成"
+        print(completion_message)
+        if progress_callback:
+            progress_callback(completion_message)
 
     except Exception as e:
-        print(f"下载小说时发生错误: {e}")
+        error_message = f"下载小说时发生错误: {e}"
+        print(error_message)
+        if progress_callback:
+            progress_callback(error_message)
         import traceback
         traceback.print_exc()
 
@@ -163,7 +176,7 @@ def get_novel_name(url, session):
 # 主函数
 def main():
     catalog_url = r"https://m.boquge.com/wapbook/179180-1.html"
-    download_novel(catalog_url, start_chapter=103, end_chapter=-1)
+    download_novel(catalog_url, start_chapter=1, end_chapter=-1, progress_callback=print)
 
 if __name__ == '__main__':
     main()
