@@ -12,6 +12,7 @@ from PySide6.QtCore import QMetaObject, Q_ARG
 import threading
 from 新版69爬虫 import download_novel as download_novel_69, get_script_directory
 from 手机笔趣阁爬虫 import download_novel as download_novel_biquge, get_script_directory as get_script_directory_biquge
+from PySide6.QtWidgets import QGroupBox
 
 # 你之前的脚本代码应该被导入或在这里重新定义
 from edge import Edge合成音频, 读取小说文件
@@ -64,34 +65,108 @@ class MainApp(QWidget):
         self.setWindowTitle("小说章节音频合成器")
         self.layout = QVBoxLayout()
 
-        self.label2 = QLabel("选择播报员：")
-        self.layout.addWidget(self.label2)
+        # 创建所有控件
+        self.createWidgets()
 
-        self.comboBox = QComboBox()
-        self.comboBox.addItems(["zh-CN-YunjianNeural", "zh-CN-YunxiNeural"])  # 添加你的播报员选项
-        self.layout.addWidget(self.comboBox)
+        # 创建两个主要部分：爬虫和TTS
+        crawler_group = QGroupBox("爬虫设置")
+        tts_group = QGroupBox("TTS设置")
+
+        crawler_layout = QVBoxLayout()
+        tts_layout = QVBoxLayout()
+
+        # 爬虫部分
+        crawler_layout.addWidget(QLabel("选择爬虫:"))
+        crawler_layout.addWidget(self.crawlerComboBox)
+        crawler_layout.addWidget(QLabel("输入小说URL:"))
+        crawler_layout.addWidget(self.urlInput)
+        crawler_layout.addWidget(self.startChapterLabel)
+        crawler_layout.addWidget(self.startChapterInput)
+        crawler_layout.addWidget(self.endChapterLabel)
+        crawler_layout.addWidget(self.endChapterInput)
+        crawler_layout.addWidget(self.startCrawlButton)
+        crawler_layout.addWidget(self.stopCrawlButton)
+        crawler_group.setLayout(crawler_layout)
+
+        # TTS部分
+        tts_layout.addWidget(self.label2)
+        tts_layout.addWidget(self.comboBox)
+        tts_layout.addWidget(self.saveFolderPathLabel)
+        tts_layout.addWidget(self.saveFolderPathLineEdit)
+        tts_layout.addWidget(self.selectFolderButton)
+        tts_layout.addLayout(self.rangeSelectionLayout)
+
+        # 文件列表、确认选择按钮和选中文件列表并排
+        lists_layout = QHBoxLayout()
+        lists_layout.addWidget(self.scrollArea, 4)  # 左侧列表占4份宽度
+        
+        # 添加一个垂直布局来容纳确认选择按钮
+        button_layout = QVBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.confirmSelectionButton)
+        button_layout.addStretch()
+        lists_layout.addLayout(button_layout, 1)  # 按钮占1份宽度
+        
+        lists_layout.addWidget(self.selectedFilesScrollArea, 4)  # 右侧列表占4份宽度
+        tts_layout.addLayout(lists_layout)
+
+        tts_layout.addWidget(self.batchStartButton)
+        tts_layout.addWidget(self.stopSynthesisButton)
+        tts_group.setLayout(tts_layout)
+
+        # 将两个主要部分添加到主布局
+        self.layout.addWidget(crawler_group)
+        self.layout.addWidget(tts_group)
+
+        # 日志部分
+        self.layout.addWidget(self.logTextEdit)
+
         self.setLayout(self.layout)
 
-        # 添加一个新的输入框让用户输入目标文件夹
-        self.saveFolderPathLabel = QLabel("输入保存音频的文件夹路径：")
-        self.layout.addWidget(self.saveFolderPathLabel)
+        # 初始化其他设置
+        self.initializeOtherSettings()
 
-        self.saveFolderPathLineEdit = QLineEdit(self)
-        self.saveFolderPathLineEdit.setPlaceholderText("例如：大明")
-        self.layout.addWidget(self.saveFolderPathLineEdit)
+        # 确保这行代码存在
+        self.confirmSelectionButton.clicked.connect(self.updateSelectedFilesDisplay)
 
-        # 初始化定时器
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.updateTimer)
-        self.startTime = 0
-        self.fileListWidget = QListWidget()
+        # 初始化右侧列表
         self.selectedFilesListWidget = QListWidget()
+        self.selectedFilesScrollArea.setWidget(self.selectedFilesListWidget)
+        
+        # 设置滚动区域的最小大小
+        self.selectedFilesScrollArea.setMinimumSize(200, 200)
+        
+        # 添加一个初始项目
+        self.selectedFilesListWidget.addItem("初始测试项目")
+        
+        # 确保这行代码存在
+        self.confirmSelectionButton.clicked.connect(self.updateSelectedFilesDisplay)
 
-        self.scanButton = QPushButton("选择文件夹并扫描")
-        self.scanButton.clicked.connect(self.scanDirectory)
-        self.layout.addWidget(self.scanButton)
-
-        # 添加区间选择功能，放在扫描按钮下面
+    def createWidgets(self):
+        # 创建所有控件
+        self.crawlerComboBox = QComboBox()
+        self.crawlerComboBox.addItems(["69爬虫", "笔趣阁爬虫"])
+        self.urlInput = QLineEdit()
+        self.startChapterLabel = QLabel("起始章节:")
+        self.startChapterInput = QSpinBox()
+        self.startChapterInput.setMinimum(1)
+        self.startChapterInput.setMaximum(9999)  # 设置一个较大的最大值
+        self.endChapterLabel = QLabel("结束章节:")
+        self.endChapterInput = QSpinBox()
+        self.endChapterInput.setMinimum(-2)
+        self.endChapterInput.setMaximum(9999)  # 设置一个较大的最大值
+        self.startCrawlButton = QPushButton("开始爬取")
+        self.startCrawlButton.clicked.connect(self.start_crawl)
+        self.stopCrawlButton = QPushButton("停止爬虫")
+        self.stopCrawlButton.clicked.connect(self.stopCrawl)
+        self.stopCrawlButton.setEnabled(False)  # 初始状态为禁用
+        self.label2 = QLabel("选择播报员:")
+        self.comboBox = QComboBox()
+        self.comboBox.addItems(["zh-CN-XiaoxiaoNeural", "zh-CN-YunxiNeural", "zh-CN-YunyangNeural", "zh-CN-liaoning-XiaobeiNeural", "zh-CN-shaanxi-XiaoniNeural"])
+        self.saveFolderPathLabel = QLabel("保存文件夹路径:")
+        self.saveFolderPathLineEdit = QLineEdit()
+        self.selectFolderButton = QPushButton("选择小说文件夹")
+        self.selectFolderButton.clicked.connect(self.selectAndScanDirectory)
         self.rangeSelectionLayout = QHBoxLayout()
         self.startSpinBox = QSpinBox()
         self.endSpinBox = QSpinBox()
@@ -101,31 +176,31 @@ class MainApp(QWidget):
         self.rangeSelectionLayout.addWidget(QLabel("结束章节:"))
         self.rangeSelectionLayout.addWidget(self.endSpinBox)
         self.rangeSelectionLayout.addWidget(self.selectRangeButton)
-        self.layout.addLayout(self.rangeSelectionLayout)
-
-        # 设置滑条区域展示文件列表
         self.scrollArea = QScrollArea()
-        self.scrollArea.setWidget(self.fileListWidget)
         self.scrollArea.setWidgetResizable(True)
-        self.layout.addWidget(self.scrollArea)
-
-        # 设置滑条区域展示选中的文件列表
+        self.fileListWidget = QListWidget()
+        self.fileListWidget.itemChanged.connect(self.fileListWidgetItemChanged)
+        self.scrollArea.setWidget(self.fileListWidget)
         self.selectedFilesScrollArea = QScrollArea()
-        self.selectedFilesScrollArea.setWidget(self.selectedFilesListWidget)
         self.selectedFilesScrollArea.setWidgetResizable(True)
-        self.layout.addWidget(self.selectedFilesScrollArea)
-
-        self.confirmSelectionButton = QPushButton("确认选择")
+        self.selectedFilesListWidget = QListWidget()
+        self.selectedFilesScrollArea.setWidget(self.selectedFilesListWidget)
+        self.confirmSelectionButton = QPushButton("确认选择 >>")
         self.confirmSelectionButton.clicked.connect(self.updateSelectedFilesDisplay)
-        self.layout.addWidget(self.confirmSelectionButton)
-
         self.batchStartButton = QPushButton("批量开始合成")
         self.batchStartButton.clicked.connect(self.batchStartSynthesis)
-        self.layout.addWidget(self.batchStartButton)
-
+        self.stopSynthesisButton = QPushButton("停止音频转换")
+        self.stopSynthesisButton.clicked.connect(self.stopSynthesis)
+        self.stopSynthesisButton.setEnabled(False)  # 初始状态为禁用
         self.logTextEdit = QTextEdit()
         self.logTextEdit.setReadOnly(True)  # 设置为只读，用户不能编辑
-        self.layout.addWidget(self.logTextEdit)
+
+    def initializeOtherSettings(self):
+        # 初始化定时器
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.updateTimer)
+        self.startTime = 0
+        self.selectedFilesListWidget = QListWidget()
 
         # 初始化选中文件的数组
         self.selectedFiles = []
@@ -140,72 +215,51 @@ class MainApp(QWidget):
         # 初始化小说名称变量
         self.novel_name = ""
 
-        # 添加URL输入框
-        self.urlLabel = QLabel("输入小说URL:")
-        self.layout.addWidget(self.urlLabel)
-        self.urlInput = QLineEdit()
-        self.layout.addWidget(self.urlInput)
-
-        # 添加开始爬取按钮
-        self.startCrawlButton = QPushButton("开始爬取")
-        self.startCrawlButton.clicked.connect(self.start_crawl)
-        self.layout.addWidget(self.startCrawlButton)
-
-        # 添加音频转换停止按钮
-        self.stopSynthesisButton = QPushButton("停止音频转换")
-        self.stopSynthesisButton.clicked.connect(self.stopSynthesis)
-        self.stopSynthesisButton.setEnabled(False)  # 初始状态为禁用
-        self.layout.addWidget(self.stopSynthesisButton)
-
-        # 添加爬虫停止按钮
-        self.stopCrawlButton = QPushButton("停止爬虫")
-        self.stopCrawlButton.clicked.connect(self.stopCrawl)
-        self.stopCrawlButton.setEnabled(False)  # 初始状态为禁用
-        self.layout.addWidget(self.stopCrawlButton)
-
         # 添加标志位
         self.is_synthesizing = False
         self.is_crawling = False
-
-        # 添加爬虫选择下拉框
-        self.crawlerLabel = QLabel("选择爬虫:")
-        self.crawlerComboBox = QComboBox()
-        self.crawlerComboBox.addItems(["69爬虫", "笔趣阁爬虫"])
-        self.layout.addWidget(self.crawlerLabel)
-        self.layout.addWidget(self.crawlerComboBox)
-
-        # 修改章节选择输入框为QSpinBox
-        self.startChapterLabel = QLabel("起始章节:")
-        self.startChapterInput = QSpinBox()
-        self.startChapterInput.setMinimum(1)
-        self.startChapterInput.setMaximum(9999)  # 设置一个较大的最大值
-        self.endChapterLabel = QLabel("结束章节:")
-        self.endChapterInput = QSpinBox()
-        self.endChapterInput.setMinimum(-2)
-        self.endChapterInput.setMaximum(9999)  # 设置一个较大的最大值
-        self.layout.addWidget(self.startChapterLabel)
-        self.layout.addWidget(self.startChapterInput)
-        self.layout.addWidget(self.endChapterLabel)
-        self.layout.addWidget(self.endChapterInput)
 
         # 连接startChapterInput的valueChanged信号到一个新的方法
         self.startChapterInput.valueChanged.connect(self.updateEndChapterMinimum)
 
     def updateSelectedFilesDisplay(self):
-        self.selectedFilesListWidget.clear()  # 清空当前选中文件的列表
-        self.selectedFiles = []  # 清空选中文件的路径数组
+        self.updateLog("开始更新选中文件列表")
+        self.selectedFilesListWidget.clear()
+        self.selectedFiles = []
+        
+        # 添加一行测试文字
+        self.selectedFilesListWidget.addItem("测试项目 - 如果您看到这行,说明列表正常工作")
+        
         for index in range(self.fileListWidget.count()):
             item = self.fileListWidget.item(index)
             if item.checkState() == Qt.Checked:
-                filePath = os.path.join(self.currentDirectory, item.text())  # 假设currentDirectory是你当前扫描的目录
+                file_name = item.text().split(". ", 1)[1]
+                filePath = os.path.join(self.currentDirectory, file_name)
                 self.selectedFiles.append(filePath)
-                self.selectedFilesListWidget.addItem(filePath)
+                self.selectedFilesListWidget.addItem(file_name)
+                self.updateLog(f"添加文件到选中列表: {file_name}")
+        
+        self.updateLog(f"已选择 {len(self.selectedFiles)} 个文件")
+        
+        # 强制更新界面
+        self.selectedFilesListWidget.repaint()
+        self.selectedFilesScrollArea.repaint()
+        
+        # 检查滚动区域的大小
+        self.updateLog(f"滚动区域大小: {self.selectedFilesScrollArea.size()}")
+        
+        # 确保滚动区域可见
+        self.selectedFilesScrollArea.setVisible(True)
+        
+        # 如果列表为空，添加一个提示项
+        if self.selectedFilesListWidget.count() == 0:
+            self.selectedFilesListWidget.addItem("没有选中的文件")
 
-    def scanDirectory(self):
-        directory = QFileDialog.getExistingDirectory(self, "选择文件夹")
+    def selectAndScanDirectory(self):
+        directory = QFileDialog.getExistingDirectory(self, "选择小说文件夹")
         if directory:
             self.currentDirectory = directory
-            self.novel_name = os.path.basename(directory)  # 获取文件夹名作为小说名
+            self.novel_name = os.path.basename(directory)
             
             # 更新保存路径的默认值
             default_save_path = os.path.join(os.getcwd(), "音频文件", self.novel_name)
@@ -214,25 +268,26 @@ class MainApp(QWidget):
             # 清除之前的列表
             self.fileListWidget.clear()
             self.selectedFiles.clear()
-            self.selectedFilesListWidget.clear()  # 如果有必要，也清空选中文件的显示列表
+            self.selectedFilesListWidget.clear()
 
-            # 获取目录中的所有文件并进行自然排序
-            filenames = os.listdir(directory)
+            # 获取目录中的所有txt文件并进行自然排序
+            filenames = [f for f in os.listdir(directory) if f.endswith('.txt')]
             sorted_filenames = sorted(filenames, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', x)])
 
             for index, filename in enumerate(sorted_filenames, start=1):
-                if os.path.isfile(os.path.join(directory, filename)):
-                    display_text = f"{index:03d}. {filename}"  # 添加三位数的序号
-                    listItem = QListWidgetItem(display_text)
-                    listItem.setFlags(listItem.flags() | Qt.ItemIsUserCheckable)
-                    listItem.setCheckState(Qt.Unchecked)
-                    self.fileListWidget.addItem(listItem)
+                display_text = f"{index:03d}. {filename}"
+                listItem = QListWidgetItem(display_text)
+                listItem.setFlags(listItem.flags() | Qt.ItemIsUserCheckable)
+                listItem.setCheckState(Qt.Unchecked)
+                self.fileListWidget.addItem(listItem)
 
             # 更新SpinBox的范围
             max_chapter = len(sorted_filenames)
             self.startSpinBox.setRange(1, max_chapter)
             self.endSpinBox.setRange(1, max_chapter)
-            self.endSpinBox.setValue(max_chapter)  # 默认设置为最大章节
+            self.endSpinBox.setValue(max_chapter)
+
+            self.updateLog(f"已加载 {max_chapter} 个txt文件")
 
     def fileListWidgetItemChanged(self, item):
         # 当用户勾选或取消勾选一个文件时更新选中文件的数组
