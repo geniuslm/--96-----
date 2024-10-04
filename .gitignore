@@ -1,0 +1,10 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+目录分析/
+txt/
+音频文件/
+测试/
