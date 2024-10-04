@@ -12,6 +12,7 @@ pyside6 = "*"
 edge-tts = "*"
 lxml = "*"
 chardet = "*"
+pyinstaller = "*"
 
 [dev-packages]
 

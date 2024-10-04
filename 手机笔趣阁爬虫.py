@@ -5,6 +5,9 @@ import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 定义请求头
 headers = {
@@ -129,37 +132,50 @@ def format_chapter_title(title, index):
 
 # 获取所有章节链接
 def get_all_chapter_links(url, session):
-    html = get_html(url, session)
-    if not html:
-        print("无法获取目录页面内容")
+    try:
+        html = get_html(url, session)
+        if not html:
+            print("无法获取目录页面内容")
+            return []
+
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # 修改: 尝试多种方式获取尾页链接
+        last_page_link = soup.select_one('div.novel-desc div#pager a:last-child')
+        if not last_page_link:
+            last_page_link = soup.select_one('div.btn_op a:last-child')
+        
+        if not last_page_link:
+            print("无法找到尾页链接,尝试获取当前页面的章节")
+            chapters = soup.select('ul.book_textList li a')
+            return chapters
+
+        last_page_num = int(last_page_link['href'].split('-')[-1].split('.')[0])
+        print(f"共有 {last_page_num} 页目录")
+
+        if last_page_num == 1:
+            logging.info("目录只有一页")
+            chapters = soup.select('ul.book_textList li a')
+            return chapters
+
+        all_chapters = []
+        for page_num in range(1, last_page_num + 1):
+            page_url = f"https://m.boquge.com/wapbook/179180-{page_num}.html"
+            print(f"正在提取第 {page_num}/{last_page_num} 页的章节链接")
+            page_html = get_html(page_url, session)
+            if page_html:
+                page_soup = BeautifulSoup(page_html, 'html.parser')
+                chapters = page_soup.select('ul.book_textList li a')
+                all_chapters.extend(chapters)
+            else:
+                print(f"无法获取第 {page_num} 页的内容")
+            time.sleep(random.uniform(1, 3))  # 添加延迟,避免请求过于频繁
+
+        print(f"总共找到 {len(all_chapters)} 个章节")
+        return all_chapters
+    except Exception as e:
+        logging.error(f"获取章节链接时发生错误: {e}")
         return []
-
-    soup = BeautifulSoup(html, 'html.parser')
-    
-    # 获取尾页链接
-    last_page_link = soup.select_one('div.novel-desc div#pager a[href*="-22.html"]')
-    if not last_page_link:
-        print("无法找到尾页链接")
-        return []
-
-    last_page_num = int(last_page_link['href'].split('-')[-1].split('.')[0])
-    print(f"共有 {last_page_num} 页目录")
-
-    all_chapters = []
-    for page_num in range(1, last_page_num + 1):
-        page_url = f"https://m.boquge.com/wapbook/179180-{page_num}.html"
-        print(f"正在提取第 {page_num}/{last_page_num} 页的章节链接")
-        page_html = get_html(page_url, session)
-        if page_html:
-            page_soup = BeautifulSoup(page_html, 'html.parser')
-            chapters = page_soup.select('ul.book_textList li a')
-            all_chapters.extend(chapters)
-        else:
-            print(f"无法获取第 {page_num} 页的内容")
-        time.sleep(random.uniform(1, 3))  # 添加延迟,避免请求过于频繁
-
-    print(f"总共找到 {len(all_chapters)} 个章节")
-    return all_chapters
 
 # 新增函数：获取小说名
 def get_novel_name(url, session):
@@ -175,7 +191,7 @@ def get_novel_name(url, session):
 
 # 主函数
 def main():
-    catalog_url = r"https://m.boquge.com/wapbook/179180-1.html"
+    catalog_url = r"https://m.boquge.com/wapbook/187863-1.html"
     download_novel(catalog_url, start_chapter=1, end_chapter=-1, progress_callback=print)
 
 if __name__ == '__main__':

@@ -6,13 +6,15 @@ import time  # 引入time模块
 from PySide6.QtCore import QThread, Signal, QRunnable, QThreadPool, QObject, Slot
 from PySide6.QtCore import QTimer
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog, QLabel, QComboBox, QHBoxLayout, QSpinBox)
-from PySide6.QtWidgets import QListWidget, QScrollArea, QListWidgetItem, QTextEdit,QLineEdit
+from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog, QLabel, QComboBox, QHBoxLayout, QSpinBox,
+                               QListWidget, QScrollArea, QListWidgetItem, QTextEdit, QLineEdit, QGroupBox, QStyle)
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import QSize
 from PySide6.QtCore import QMetaObject, Q_ARG
 import threading
 from 新版69爬虫 import download_novel as download_novel_69, get_script_directory
 from 手机笔趣阁爬虫 import download_novel as download_novel_biquge, get_script_directory as get_script_directory_biquge
-from PySide6.QtWidgets import QGroupBox
+
 
 # 你之前的脚本代码应该被导入或在这里重新定义
 from edge import Edge合成音频, 读取小说文件
@@ -35,7 +37,8 @@ class Worker(QRunnable):
     def run(self):
         try:
             # 发送开始合成的日志
-            self.signals.log.emit(f"开始合成：{os.path.basename(self.保存文件路径)}")
+            file_name = os.path.basename(self.保存文件路径)
+            self.signals.log.emit(f"开始合成: {file_name:>60}")
             start_time = time.time()
 
             # 创建新的事件循环
@@ -47,10 +50,7 @@ class Worker(QRunnable):
 
             # 发送完成合成的日志
             elapsed_time = time.time() - start_time
-            self.signals.log.emit(f"{os.path.basename(self.保存文件路径)} 合成完成，用时 {elapsed_time:.2f}秒")
-
-            # 发送完成信号
-            self.signals.finished.emit(self.保存文件路径)
+            self.signals.log.emit(f"合成完成: {elapsed_time:>6.2f}秒 {file_name}")
 
         except Exception as e:
             self.signals.log.emit(f"合成失败：{str(e)}")
@@ -142,6 +142,15 @@ class MainApp(QWidget):
         # 确保这行代码存在
         self.confirmSelectionButton.clicked.connect(self.updateSelectedFilesDisplay)
 
+        # 修改默认播报员
+        self.comboBox.setCurrentText("zh-CN-YunyangNeural")
+
+        # 修改确认选择按钮
+        self.confirmSelectionButton.setText("")
+        self.confirmSelectionButton.setIcon(self.style().standardIcon(QStyle.SP_ArrowRight))
+        self.confirmSelectionButton.setIconSize(QSize(30, 30))  # 调整图标大小
+        self.confirmSelectionButton.setFixedSize(40, 80)  # 调整按钮大小
+
     def createWidgets(self):
         # 创建所有控件
         self.crawlerComboBox = QComboBox()
@@ -179,7 +188,6 @@ class MainApp(QWidget):
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidgetResizable(True)
         self.fileListWidget = QListWidget()
-        self.fileListWidget.itemChanged.connect(self.fileListWidgetItemChanged)
         self.scrollArea.setWidget(self.fileListWidget)
         self.selectedFilesScrollArea = QScrollArea()
         self.selectedFilesScrollArea.setWidgetResizable(True)
@@ -223,12 +231,8 @@ class MainApp(QWidget):
         self.startChapterInput.valueChanged.connect(self.updateEndChapterMinimum)
 
     def updateSelectedFilesDisplay(self):
-        self.updateLog("开始更新选中文件列表")
         self.selectedFilesListWidget.clear()
         self.selectedFiles = []
-        
-        # 添加一行测试文字
-        self.selectedFilesListWidget.addItem("测试项目 - 如果您看到这行,说明列表正常工作")
         
         for index in range(self.fileListWidget.count()):
             item = self.fileListWidget.item(index)
@@ -237,19 +241,8 @@ class MainApp(QWidget):
                 filePath = os.path.join(self.currentDirectory, file_name)
                 self.selectedFiles.append(filePath)
                 self.selectedFilesListWidget.addItem(file_name)
-                self.updateLog(f"添加文件到选中列表: {file_name}")
         
         self.updateLog(f"已选择 {len(self.selectedFiles)} 个文件")
-        
-        # 强制更新界面
-        self.selectedFilesListWidget.repaint()
-        self.selectedFilesScrollArea.repaint()
-        
-        # 检查滚动区域的大小
-        self.updateLog(f"滚动区域大小: {self.selectedFilesScrollArea.size()}")
-        
-        # 确保滚动区域可见
-        self.selectedFilesScrollArea.setVisible(True)
         
         # 如果列表为空，添加一个提示项
         if self.selectedFilesListWidget.count() == 0:
@@ -289,20 +282,10 @@ class MainApp(QWidget):
 
             self.updateLog(f"已加载 {max_chapter} 个txt文件")
 
-    def fileListWidgetItemChanged(self, item):
-        # 当用户勾选或取消勾选一个文件时更新选中文件的数组
-        filePath = os.path.join(self.currentDirectory, item.text())
-        if item.checkState() == Qt.Checked and filePath not in self.selectedFiles:
-            self.selectedFiles.append(filePath)
-            self.selectedFilesListWidget.addItem(filePath)
-        elif item.checkState() == Qt.Unchecked and filePath in self.selectedFiles:
-            self.selectedFiles.remove(filePath)
-            # 这里需要找到并移除对应的QListWidgetItem
-            foundItems = self.selectedFilesListWidget.findItems(filePath, Qt.MatchExactly)
-            if foundItems:
-                for item in foundItems:
-                    row = self.selectedFilesListWidget.row(item)
-                    self.selectedFilesListWidget.takeItem(row)
+    @Slot(str)
+    def updateLog(self, message):
+        # 移除对消息类型的限制,记录所有消息
+        self.logTextEdit.append(message)
 
     def batchStartSynthesis(self):
         self.is_synthesizing = True
@@ -310,6 +293,9 @@ class MainApp(QWidget):
         用户指定目录 = self.saveFolderPathLineEdit.text().strip()
         if not 用户指定目录:
             用户指定目录 = os.path.join(os.getcwd(), "音频文件", self.novel_name)
+        
+        total_files = len(self.selectedFiles)
+        self.processed_files = 0
         
         for filePath in self.selectedFiles:
             if not self.is_synthesizing:
@@ -338,6 +324,25 @@ class MainApp(QWidget):
             
             # 使用线程池启动worker
             self.threadpool.start(worker)
+        
+        # 启动一个定时器来检查是否所有任务都完成了
+        self.checkCompletionTimer = QTimer()
+        self.checkCompletionTimer.timeout.connect(lambda: self.checkCompletion(total_files))
+        self.checkCompletionTimer.start(1000)  # 每秒检查一次
+
+    def checkCompletion(self, total_files):
+        if self.processed_files == total_files or not self.is_synthesizing:
+            self.checkCompletionTimer.stop()
+            if self.is_synthesizing:
+                self.updateLog(f"批量转换完成：共处理 {self.processed_files} 个文件")
+            else:
+                self.updateLog(f"批量转换被中断：已处理 {self.processed_files}/{total_files} 个文件")
+            self.is_synthesizing = False
+            self.stopSynthesisButton.setEnabled(False)
+
+    def onWorkerFinished(self, file_path):
+        self.processed_files += 1
+        self.updateLog(f"文件 {os.path.basename(file_path)} 处理完成")
 
     def stopSynthesis(self):
         if self.is_synthesizing:
@@ -345,14 +350,6 @@ class MainApp(QWidget):
             self.threadpool.clear()  # 清空线程池中的任务
             self.stopSynthesisButton.setEnabled(False)
             self.updateLog("音频转换已停止")
-
-    @Slot(str)
-    def updateLog(self, message):
-        self.logTextEdit.append(message)
-
-    @Slot(str)
-    def onWorkerFinished(self, file_path):
-        self.updateLog(f"文件 {os.path.basename(file_path)} 处理完成")
 
     def openFileDialog(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "选择小说章节文件")
@@ -418,33 +415,40 @@ class MainApp(QWidget):
             self.updateLog("爬虫已停止")
 
     def run_crawler(self, url, selected_crawler, start_chapter, end_chapter):
+        original_stdout = sys.stdout  # 保存原始的stdout
+
+        class CustomOutput:
+            def __init__(self, callback):
+                self.callback = callback
+
+            def write(self, message):
+                if message.strip():  # 忽略空白行
+                    self.callback(message.strip())
+
+            def flush(self):
+                pass  # 为了完整性添加这个方法
+
         try:
-            def custom_print(*args, **kwargs):
-                if not self.is_crawling:
-                    raise Exception("爬虫已停止")
-                message = ' '.join(map(str, args))
-                self.updateLog(message)
-
-            original_stdout = sys.stdout
-            class CustomStdout:
-                def write(self, message):
-                    if message.strip():
-                        custom_print(message.strip())
-                def flush(self):
-                    pass
-
-            sys.stdout = CustomStdout()
+            custom_output = CustomOutput(lambda msg: QMetaObject.invokeMethod(self, "updateLog", 
+                                                                              Qt.QueuedConnection,
+                                                                              Q_ARG(str, msg)))
+            sys.stdout = custom_output  # 重定向stdout到custom_output对象
+            
+            if not self.is_crawling:
+                raise Exception("爬虫已停止")
 
             if selected_crawler == "69爬虫":
-                download_novel_69(url, save_dir=get_script_directory(), progress_callback=custom_print, start_chapter=start_chapter, end_chapter=end_chapter)
-            else:  # 笔趣阁爬虫
-                download_novel_biquge(url, save_dir=get_script_directory_biquge(), progress_callback=custom_print, start_chapter=start_chapter, end_chapter=end_chapter)
+                download_novel_69(url, start_chapter, end_chapter)
+            elif selected_crawler == "笔趣阁爬虫":
+                download_novel_biquge(url, start_chapter, end_chapter)
+            else:
+                self.updateLog("未知的爬虫类型")
 
         except Exception as e:
             if str(e) != "爬虫已停止":
                 self.updateLog(f"爬取过程中发生错误: {str(e)}")
         finally:
-            sys.stdout = original_stdout
+            sys.stdout = original_stdout  # 恢复原始的stdout
             self.is_crawling = False
             QMetaObject.invokeMethod(self.startCrawlButton, "setEnabled", 
                                      Qt.QueuedConnection,
@@ -452,13 +456,6 @@ class MainApp(QWidget):
             QMetaObject.invokeMethod(self.stopCrawlButton, "setEnabled", 
                                      Qt.QueuedConnection,
                                      Q_ARG(bool, False))
-
-    @Slot(str)
-    def updateLog(self, message):
-        # 使用QMetaObject.invokeMethod确保在主线程中更新UI
-        QMetaObject.invokeMethod(self.logTextEdit, "append", 
-                                 Qt.QueuedConnection,
-                                 Q_ARG(str, message))
 
     def updateEndChapterMinimum(self, value):
         """
