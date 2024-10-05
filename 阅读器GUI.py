@@ -4,7 +4,7 @@ import json
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                                QComboBox, QListWidget, QTextEdit, QLabel, QPushButton, QSlider, QScrollBar, QSplitter)
 from PySide6.QtCore import Qt, QSettings, QEvent
-from PySide6.QtGui import QFont, QMouseEvent, QColor, QPalette
+from PySide6.QtGui import QFont, QMouseEvent, QColor, QPalette, QKeyEvent
 
 class CustomTextEdit(QTextEdit):
     def __init__(self, parent=None):
@@ -35,6 +35,17 @@ class CustomTextEdit(QTextEdit):
             self.setCursor(Qt.ArrowCursor)
         else:
             super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent):
+        self.window().toggle_left_panel(event)
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == Qt.Key_Left:
+            self.window().switch_chapter(-1)  # 切换到上一章
+        elif event.key() == Qt.Key_Right:
+            self.window().switch_chapter(1)  # 切换到下一章
+        else:
+            super().keyPressEvent(event)
 
 class ReaderGUI(QMainWindow):
     def __init__(self):
@@ -132,6 +143,7 @@ class ReaderGUI(QMainWindow):
         self.content_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.content_edit.verticalScrollBar().setFixedWidth(15)
         self.content_edit.mouseDoubleClickEvent = self.toggle_left_panel
+        self.content_edit.setFocusPolicy(Qt.StrongFocus)
         self.splitter.addWidget(self.content_edit)
         
         # 设置初始分割比例
@@ -177,6 +189,7 @@ class ReaderGUI(QMainWindow):
         with open(os.path.join('txt', current_novel, chapter_file), 'r', encoding='utf-8') as f:
             content = f.read()
         self.content_edit.setText(content)
+        self.content_edit.verticalScrollBar().setValue(0)  # 滚动到顶部
 
     def change_font_size(self, size):
         font = self.content_edit.font()
@@ -264,6 +277,13 @@ class ReaderGUI(QMainWindow):
             left_widget.hide()
         else:
             left_widget.show()
+
+    def switch_chapter(self, direction):
+        current_row = self.chapter_list.currentRow()
+        new_row = current_row + direction
+        if 0 <= new_row < self.chapter_list.count():
+            self.chapter_list.setCurrentRow(new_row)
+            self.load_content(self.chapter_list.item(new_row))
 
 if __name__ == "__main__":
     app = QApplication([])
